@@ -1,89 +1,111 @@
-import { useState } from "react";
-import EventCard from "../../components/EventCard";
-import Select from "../../components/Select";
-import { useData } from "../../contexts/DataContext";
-import Modal from "../Modal";
-import ModalEvent from "../ModalEvent";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { api, DataProvider } from "../../contexts/DataContext";
+import Events from "./index";
 
-import "./style.css";
+const data = {
+  events: [
+    {
+      id: 1,
+      type: "soirée entreprise",
+      date: "2022-04-29T20:28:45.744Z",
+      title: "Conférence #productCON",
+      cover: "/images/stem-list-EVgsAbL51Rk-unsplash.png",
+      description:
+        "Présentation des outils analytics aux professionnels du secteur",
+      nb_guesses: 1300,
+      periode: "24-25-26 Février",
+      prestations: [
+        "1 espace d’exposition",
+        "1 scéne principale",
+        "2 espaces de restaurations",
+        "1 site web dédié",
+      ],
+    },
 
-const PER_PAGE = 9;
-
-const EventList = () => {
-  const { data, error } = useData();
-  const [type, setType] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const filteredEvents = (data?.events || [])
-    .filter((event) => (type ? event.type === type : true))
-    .filter((_, index) => {
-      return (
-        (currentPage - 1) * PER_PAGE <= index &&
-        index < PER_PAGE * currentPage
-      );
-    });
-
-  const changeType = (evtType) => {
-    setCurrentPage(1);
-    setType(evtType);
-  };
-
-  const pageNumber = Math.floor(
-    ((data?.events || []).filter((event) =>
-      type ? event.type === type : true
-    ).length - 1) / PER_PAGE
-  ) + 1;
-
-  const typeList = new Set((data?.events || []).map((event) => event.type));
-
-  return (
-    <>
-      {error && <div>An error occured</div>}
-
-      {data === null ? (
-        "loading"
-      ) : (
-        <>
-          <h3 className="SelectTitle">Catégories</h3>
-
-          <Select
-            selection={Array.from(typeList)}
-            onChange={(value) =>
-              value ? changeType(value) : changeType(null)
-            }
-          />
-
-          <div id="events" className="ListContainer">
-            {filteredEvents.map((event) => (
-              <Modal key={event.id} Content={<ModalEvent event={event} />}>
-                {({ setIsOpened }) => (
-                  <EventCard
-                    onClick={() => setIsOpened(true)}
-                    imageSrc={event.cover}
-                    title={event.title}
-                    date={new Date(event.date)}
-                    label={event.type}
-                  />
-                )}
-              </Modal>
-            ))}
-          </div>
-
-          <div className="Pagination">
-            {[...Array(pageNumber || 0)].map((_, n) => (
-              <a
-                key={n}
-                href="#events"
-                onClick={() => setCurrentPage(n + 1)}
-              >
-                {n + 1}
-              </a>
-            ))}
-          </div>
-        </>
-      )}
-    </>
-  );
+    {
+      id: 2,
+      type: "forum",
+      date: "2022-04-29T20:28:45.744Z",
+      title: "Forum #productCON",
+      cover: "/images/stem-list-EVgsAbL51Rk-unsplash.png",
+      description:
+        "Présentation des outils analytics aux professionnels du secteur",
+      nb_guesses: 1300,
+      periode: "24-25-26 Février",
+      prestations: ["1 espace d’exposition", "1 scéne principale"],
+    },
+  ],
 };
 
-export default EventList;
+describe("When Events is created", () => {
+  it("a list of event card is displayed", async () => {
+    api.loadData = jest.fn().mockReturnValue(data);
+    render(
+      <DataProvider>
+        <Events />
+      </DataProvider>
+    );
+    await screen.findByText("avril");
+  });
+  describe("and an error occured", () => {
+    it("an error message is displayed", async () => {
+      api.loadData = jest.fn().mockRejectedValue();
+      render(
+        <DataProvider>
+          <Events />
+        </DataProvider>
+      );
+      expect(await screen.findByText("An error occured")).toBeInTheDocument();
+    });
+  });
+  describe("and we select a category", () => {
+    it.only("an filtered list is displayed", async () => {
+      api.loadData = jest.fn().mockReturnValue(data);
+      render(
+        <DataProvider>
+          <Events />
+        </DataProvider>
+      );
+      await screen.findByText("Forum #productCON");
+      fireEvent(
+        await screen.findByTestId("collapse-button-testid"),
+        new MouseEvent("click", {
+          cancelable: true,
+          bubbles: true,
+        })
+      );
+      fireEvent(
+        (await screen.findAllByText("soirée entreprise"))[0],
+        new MouseEvent("click", {
+          cancelable: true,
+          bubbles: true,
+        })
+      );
+
+      await screen.findByText("Conférence #productCON");
+      expect(screen.queryByText("Forum #productCON")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("and we click on an event", () => {
+    it("the event detail is displayed", async () => {
+      api.loadData = jest.fn().mockReturnValue(data);
+      render(
+        <DataProvider>
+          <Events />
+        </DataProvider>
+      );
+
+      fireEvent(
+        await screen.findByText("Conférence #productCON"),
+        new MouseEvent("click", {
+          cancelable: true,
+          bubbles: true,
+        })
+      );
+
+      await screen.findByText("24-25-26 Février");
+      await screen.findByText("1 site web dédié");
+    });
+  });
+});
